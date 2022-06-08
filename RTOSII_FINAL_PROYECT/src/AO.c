@@ -1,111 +1,162 @@
-/*=====[AO.c]======================================================
- * Copyright 2020 Authors:
- * Felipe Alberto Calcavecchia  <facalcavec@gmail.com>
- * Fabiola de las Casas EscardÃƒÂ³ <fabioladelascasas@gmail.com>
- * Alejandro Moreno 			<ale.moreno991@gmail.com>
- *
+/*=============================================================================
+ * Copyright (c) 2022, Nahuel Figueroa <nahuu810@gmail.com>
  * All rights reserved.
- * License: license text or at least name and link
-         (example: BSD-3-Clause <https://opensource.org/licenses/BSD-3-Clause>)
- *
- * Version: 1.0.0
- * Creation Date: 2020/12/02
- */
+ * License: mit (see LICENSE.txt)
+ * Date: 2022/06/07
+ *===========================================================================*/
 
-/*=====[Inclusion of own header]=============================================*/
+/*=====[Inclusions of function dependencies]=================================*/
+
 #include "AO.h"
 
-/*=====[Definition macros of private constants]==============================*/
+/*===== Funci�n activeObjectCreate()===========================================
+ *
+ * (+) Descripci�n: Esta funci�n se encarga de crear el objeto activo; es decir,
+ * crear su cola de procesamiento y su tarea asociada. Adicionalmente, se le
+ * asignar� una funci�n de callback que es la que se ejecutar� en la tarea.
+ *
+ * (+) Recibe: Un puntero del tipo "activeObject_t" al objeto activo y el
+ * evento del tipo "activeObjectEvent_t".
+ *
+ * (+) Devuelve: True o False dependiendo de si el objeto activo se cre�
+ * correctamente o no.
+ *
+ *===========================================================================*/
 
-/*=====[Private function-like macros]========================================*/
-
-/*=====[Definitions of private data types]===================================*/
-
-/*=====[Definitions of external public global variables]=====================*/
-
-/*=====[Definitions of public global variables]==============================*/
-
-/*=====[Definitions of private global variables]=============================*/
-
-
-/*=====[Prototypes (declarations) of private functions]====================*/
-
-
-/*=====[Prototypes (declarations) of public functions]======================*/
-
-bool_t activeObjectCreate( activeObject_t* ao, callbackAO_t callback, TaskFunction_t taskForAO )
+bool_t activeObjectCreate(activeObject_t *ao, callBackActObj_t callback, TaskFunction_t taskForAO)
 {
+    // Una variable local para saber si hemos creado correctamente los objetos.
     BaseType_t retValue = pdFALSE;
+
+    // Creamos la cola asociada a este objeto activo.
+    ao->activeObjectQueue = xQueueCreate(N_QUEUE_AO, sizeof(queueRecievedFrame_t *));
+    configASSERT(ao->activeObjectQueue != NULL);
 
     // Asignamos la tarea al objeto activo.
     ao->taskName = taskForAO;
 
-    // Creamos la cola asociada a este objeto activo.
-    ao->activeObjectQueue = xQueueCreate( nAO , sizeof( activeObjectEvent_t ) );
-
-    if( ao->activeObjectQueue != NULL )
+    // Si la cola se cre� sin inconvenientes.
+    if (ao->activeObjectQueue != NULL)
     {
         // Asignamos el callback al objeto activo.
         ao->callbackFunc = callback;
 
-        // Creamos la tarea asociada al objeto activo. A la tarea se le pasará el objeto activo como parámetro.
-        retValue = xTaskCreate( ao->taskName, ( const char * )"Task For AO", configMINIMAL_STACK_SIZE*1, ao, tskIDLE_PRIORITY+2, NULL );
+        // Creamos la tarea asociada al objeto activo. A la tarea se le pasar� el objeto activo como par�metro.
+        retValue = xTaskCreate(ao->taskName, (const char *)"Task For AO", configMINIMAL_STACK_SIZE * 2, ao, tskIDLE_PRIORITY + 2, NULL);
     }
 
-    // Chequeamos si la tarea se creó correctamente o no.
-    if( retValue == pdPASS )
+    // Chequeamos si la tarea se cre� correctamente o no.
+    if (retValue == pdPASS)
     {
         // Cargamos en la variable de estado del objeto activo el valor "true" para indicar que se ha creado.
-        ao->exist = TRUE;
-        //printf( "devuelve un TRUE\r\n");
-        return( TRUE );
+        ao->itIsAlive = TRUE;
+
+        // Devolvemos "true" para saber que el objeto activo se instanci� correctamente.
+        return (TRUE);
     }
     else
     {
-    	configASSERT( retValue == pdPASS ); 	// Gestión de errores
+        // Caso contrario, devolvemos "false".
+        return (FALSE);
     }
 }
 
-void activeObjectTask( void* pvParameters )
+/*===========================================================================*/
+
+/*===== Tarea activeObjectTask()===============================================
+ *
+ * (+) Descripci�n: Esta es la tarea asociada al objeto activo. Leer� datos de
+ * la cola del objeto y cuando los procese, se ejecutar� el callback asociado.
+ *
+ * (+) Recibe: Un puntero del tipo "void" por donde se enviar� el puntero al
+ * objeto activo.
+ *
+ * (+) Devuelve: Nada.
+ *
+ *===========================================================================*/
+
+void activeObjectTask(void *pvParameters)
 {
-    BaseType_t ret;
+    // Una variable para evaluar la lectura de la cola.
+    BaseType_t retQueueVal;
 
     // Una variable local para almacenar el dato desde la cola.
-    activeObjectEvent_t  auxValue;
+    void *auxValue;
 
     // Obtenemos el puntero al objeto activo.
-    activeObject_t* actObj = ( activeObject_t* ) pvParameters;
+    activeObject_t *actObj = (activeObject_t *)pvParameters;
 
     // Cuando hay un evento, lo procesamos.
-    while( TRUE )
+    while (TRUE)
     {
-        // Verifico si hay elementos para procesar en la cola.
-        if( uxQueueMessagesWaiting( actObj->activeObjectQueue )!=0 )
+        // Verifico si hay elementos para procesar en la cola. Si los hay, los proceso.
+        if (uxQueueMessagesWaiting(actObj->activeObjectQueue))
         {
-        	ret = xQueueReceive( actObj->activeObjectQueue, &auxValue, portMAX_DELAY );
+            // Hago una lectura de la cola.
+            retQueueVal = xQueueReceive(actObj->activeObjectQueue, (char *)&auxValue, portMAX_DELAY);
 
             // Si la lectura fue exitosa, proceso el dato.
-            if( ret )
+            if (retQueueVal)
             {
-                // Llamamos al callback correspondiente en base al comando que se le pasó.
-                ( actObj->callbackFunc )( &auxValue );
+                // Llamamos al callback correspondiente en base al comando que se le pas�.
+                /* TODO:INFO a la funcion llamante le mando el ao que la llamo coo referenca porq
+                   es necesario */
+                (actObj->callbackFunc)(actObj, auxValue);
             }
         }
 
-        // Caso contrario, la cola está vacía, lo que significa que debo eliminar la tarea.
+        // Caso contrario, la cola est� vac�a, lo que significa que debo eliminar la tarea.
         else
         {
-            actObj->exist = FALSE;
+            // Cambiamos el estado de la variable de estado, para indicar que el objeto activo no existe m�s.
+            actObj->itIsAlive = FALSE;
 
-            vQueueDelete( actObj->activeObjectQueue );
+            // Borramos la cola del objeto activo.
+            vQueueDelete(actObj->activeObjectQueue);
 
-            vTaskDelete( NULL );
-
+            // Y finalmente tenemos que eliminar la tarea asociada (suicidio).
+            vTaskDelete(NULL);
         }
     }
 }
 
+/*===========================================================================*/
 
-/*=====[Implementations of private functions]================================*/
+/*===== Funci�n activeObjectEnqueue()==========================================
+ *
+ * (+) Descripci�n: Esta funci�n se encargar� de ingresar en la cola del objeto
+ * activo un evento que deber� procesarse.
+ *
+ * (+) Recibe: Un puntero del tipo "activeObject_t" por donde se enviar� el
+ * puntero al objeto activo y un puntero a "char" donde se le pasar� el dato a
+ * encolar.
+ *
+ * (+) Devuelve: Nada.
+ *
+ *===========================================================================*/
 
+void activeObjectEnqueue(activeObject_t *ao, queueRecievedFrame_t *value)
+{
+    // Y lo enviamos a la cola.
+    xQueueSend(ao->activeObjectQueue, &value, 0);
+}
 
+/*===========================================================================*/
+
+bool_t activeObjectOperationCreate(activeObject_t *ao, callBackActObj_t callback, TaskFunction_t taskForAO, QueueHandle_t response_queue)
+{
+    /* cargo miembro que no estaba */
+    ao->activeObjectQueue = response_queue;
+    /* creo oa padre */
+    return activeObjectCreate(ao, callback, taskForAO);
+}
+
+void activeObjectEnqueueResponse(activeObject_t *ao, void *value)
+{
+    // Y lo enviamos a la cola.
+    if (xQueueSend(ao->responseQueue, value, 0) != pdPASS)
+    {
+        while (1)
+            ;
+    }
+}

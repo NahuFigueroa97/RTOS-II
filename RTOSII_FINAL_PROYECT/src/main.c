@@ -1,94 +1,67 @@
-/*=====[main.c]===========================================================
- * Copyright 2020 Authors:
- * Felipe Alberto Calcavecchia  <facalcavec@gmail.com>
- * Fabiola de las Casas EscardÃ³ <fabioladelascasas@gmail.com>
- * Alejandro Moreno 			<ale.moreno991@gmail.com>
- *
+/*=============================================================================
+ * Copyright (c) 2022, Nahuel Figueroa <nahuu810@gmail.com>
  * All rights reserved.
- * License: license text or at least name and link
- *       (example: BSD-3-Clause <https://opensource.org/licenses/BSD-3-Clause>)
- *
- * Version: 1.0.0
- * Creation Date: 2020/12/02
- */
+ * License: mit (see LICENSE.txt)
+ * Date: 2022/06/07
+ *===========================================================================*/
 
-/*=====[Inclusion of own header]=============================================*/
+/*=====[Inclusions of function dependencies]=================================*/
 
-
-/*=====[Inclusions of private function dependencies]=========================*/
-#include "access2medium.h"
-#include "app.h"
-#include "cola.h"
-#include "frame_parser.h"
-#include "FreeRTOSConfig.h"
-#include "qmpool.h"
-#include "FreeRTOS.h"
-#include "task.h"
+#include "main.h"
 #include "sapi.h"
-#include "AO.h"
+#include "FreeRTOS.h"
+#include "FreeRTOSConfig.h"
+#include "task.h"
+#include "userTasks.h"
+#include "wrapper.h"
+#include "appConfig.h"
 
 /*=====[Definition macros of private constants]==============================*/
 
-/*=====[Private function-like macros]========================================*/
-
-/*=====[Definitions of private data types]===================================*/
-
-/*=====[Definitions of external public global variables]=====================*/
+/*=====[Definitions of extern global variables]==============================*/
 
 /*=====[Definitions of public global variables]==============================*/
 
-/* Manejador del perifÃ©rico UART_USB */
-access2medium_t uart_usb_handle;
-
-/* Colas de comunicaciÃ³n entre capas */
-cola_t cola_2a3;
-cola_t cola_3a2;//Definimos la cola
-
-/* Manejador de memoria dinamica */
-memory_manager_t mem_handle;
-
-tMensaje mem_pool_ptr; //puntero al segmento de memoria que albergara el pool
-
-frame_parser_t frame_parser_handle;
-
-activeObject_t aoApp;
-
-
 /*=====[Definitions of private global variables]=============================*/
 
-/*=====[Prototypes (declarations) of private functions]======================*/
+/*=====[Main function, program entry point after power on or reset]==========*/
 
-/*=====[Implementations of public functions]=================================*/
-
-int main( void )
+int main(void)
 {
-	/* Inicializar la placa */
-    boardConfig();
+    boardInit();
 
-    Memory_Init ( &mem_handle, &mem_pool_ptr );
+    static config_t config = {
+        .uart = UART_USB,
+        .baud = 115200,
+        .index = 0};
+    initWrapper(&config);
 
-	Cola_Create( &cola_2a3 );//Crea COLAS
-	Cola_Create( &cola_3a2 );//Crea COLAS
+    // static config_t config2 = {
+    //     .uart = UART_GPIO,
+    //     .baud = 115200,
+    //     .index = 1};
+    // initWrapper(&config2);
 
-    Access2Medium_Create( &uart_usb_handle,
-    					  UART_USB,
-						  115200,
-						  FrameParser_CatchMsg );
+    BaseType_t res;
 
-    FrameParser_Create( &frame_parser_handle );//CREA TAREAS
+    // Create a task in freeRTOS with dynamic memory
+    res = xTaskCreate(
+        myTask,                       // Function that implements the task.
+        (const char *)"myTask",       // Text name for the task.
+        configMINIMAL_STACK_SIZE * 1, // Stack size in words, not bytes.
+        0,                            // Parameter passed into the task.
+        tskIDLE_PRIORITY + 1,         // Priority at which the task is created.
+        0                             // Pointer to the task created in the system
+    );
+    configASSERT(res == pdPASS);
 
+    vTaskStartScheduler(); // Initialize scheduler
 
-    printf( "Grupo XXX - Farfan - Rizo\r\n");
-   // printf( "temperatura_sensor = %d --> temperatura_grados = %d C\r\n", 1, 1 );
+    while (true)
+        ; // If reach heare it means that the scheduler could not start
 
-
-    activeObjectCreate( &aoApp, NULL , App_Convert );
-	
-    vTaskStartScheduler();
-
+    // YOU NEVER REACH HERE, because this program runs directly or on a
+    // microcontroller and is not called by any Operating System, as in the
+    // case of a PC program.
     return 0;
 }
-
-/*=====[Implementations of interrupt functions]==============================*/
-
-/*=====[Implementations of private functions]================================*/

@@ -1,4 +1,3 @@
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -22,17 +21,18 @@
  * CRC8-CCITT, with normal polynomial; 0x07.
  */
 
-#ifndef _CRC8_H_
-#define _CRC8_H_
+#ifndef _UTIL_CRC8_H_
+#define _UTIL_CRC8_H_
 
 #include <inttypes.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-uint8_t crc8_init(void);
-uint8_t crc8_calc(uint8_t val, void *buf, int cnt);
+    uint8_t crc8_init(void);
+    uint8_t crc8_calc(uint8_t val, void *buf, uint32_t cnt);
 
 #ifdef __cplusplus
 }
